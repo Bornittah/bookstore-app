@@ -9,14 +9,21 @@ export const getBooksAsync = createAsyncThunk(
     const response = await fetch(
       'https://us-central1-bookstore-api-e63c8.cloudfunctions.net/bookstoreApi/apps/Bprdxe14OldQ8ZgxdRDq/books',
     );
-    const book = await response.json();
-    return book;
+    const data = await response.json();
+    const entries = Object.entries(data);
+    const books = entries.map((element) => ({
+      id: element[0],
+      title: Object.assign(...element[1]).title,
+      author: Object.assign(...element[1]).author,
+      category: Object.assign(...element[1]).category,
+    }));
+    return books;
   },
 );
 
 export const addBookAsync = createAsyncThunk(
   'books/addbooksasync',
-  async (payload) => {
+  async (payload, thunkAPI) => {
     const response = await fetch(
       'https://us-central1-bookstore-api-e63c8.cloudfunctions.net/bookstoreApi/apps/Bprdxe14OldQ8ZgxdRDq/books',
       {
@@ -33,40 +40,42 @@ export const addBookAsync = createAsyncThunk(
       },
     );
     await response.text();
+    thunkAPI.dispatch(getBooksAsync());
     return payload;
   },
 );
 
-// export removeBookAsync = createAsyncThunk(
-//   'books/removeBooksAsync',
-//   async (payload) => {
-//     const response = await fetch()
-//   }
-// )
+export const removeBookAsync = createAsyncThunk(
+  'books/removeBooksAsync',
+  async (id, thunkAPI) => {
+    const response = await fetch(
+      `https://us-central1-bookstore-api-e63c8.cloudfunctions.net/bookstoreApi/apps/Bprdxe14OldQ8ZgxdRDq/books/${id}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+    const book = await response.text();
+    thunkAPI.dispatch(getBooksAsync());
+    return book;
+  },
+);
 
 const booksSlice = createSlice({
   name: 'books',
   initialState: [],
-  reducers: {
-    addBook: (state, action) => {
-      const newBook = {
-        item_id: state.length + 1,
-        title: action.payload.title,
-        author: action.payload.author,
-      };
-      return [...state, newBook];
-    },
-    // removeBook: (state, action) => state.filter((book) => book.item_id !== action.item_id),
-  },
-  extraReducers: {
-    [getBooksAsync.fulfilled]: (state, action) => action.payload.book,
-    [addBookAsync.fulfilled]: (state, action) => {
-      state[action.payload.item_id] = [{
-        title: action.payload.title,
-        author: action.payload.author,
-        category: action.payload.category,
-      }];
-    },
+  extraReducers: (builder) => {
+    builder.addCase(
+      getBooksAsync.fulfilled,
+      (books, action) => action.payload,
+    );
+    builder.addCase(addBookAsync.fulfilled, (books, action) => {
+      books.push(action.payload);
+    });
+    builder.addCase(removeBookAsync.fulfilled,
+      (books, action) => books.filter((book) => book.id !== action.payload));
   },
 });
 
